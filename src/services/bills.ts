@@ -24,7 +24,7 @@ export async function getBills(userId: number): Promise<Bill[]> {
       FROM bills b
       LEFT JOIN bill_categories c ON b.category_id = c.id
       WHERE b.user_id = ? AND b.is_active = 1
-      ORDER BY b.due_day ASC
+      ORDER BY b.amount DESC
     `,
     args: [userId],
   })
@@ -109,6 +109,29 @@ export async function deleteBill(id: number): Promise<void> {
   const client = getDbClient()
   await client.execute({
     sql: 'UPDATE bills SET is_active = 0 WHERE id = ?',
+    args: [id],
+  })
+}
+
+export async function getInactiveBills(userId: number): Promise<Bill[]> {
+  const client = getDbClient()
+  const result = await client.execute({
+    sql: `
+      SELECT b.*, c.name as category_name, c.icon as category_icon, c.color as category_color
+      FROM bills b
+      LEFT JOIN bill_categories c ON b.category_id = c.id
+      WHERE b.user_id = ? AND b.is_active = 0
+      ORDER BY b.amount DESC
+    `,
+    args: [userId],
+  })
+  return result.rows as unknown as Bill[]
+}
+
+export async function restoreBill(id: number): Promise<void> {
+  const client = getDbClient()
+  await client.execute({
+    sql: 'UPDATE bills SET is_active = 1 WHERE id = ?',
     args: [id],
   })
 }

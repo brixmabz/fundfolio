@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Receipt, Search, Filter, Loader2, Check, Trash2 } from 'lucide-react'
+import { Plus, Receipt, Loader2, Check, Trash2, Pencil, RotateCcw } from 'lucide-react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -31,13 +31,22 @@ import {
   createBillPayment,
   getBillsSummary,
   deleteBill,
+  updateBill,
+  getInactiveBills,
+  restoreBill,
+  getBillPaymentsForMonth,
 } from '@/services/bills'
 import type { Bill, BillCategory } from '@/types/database'
 
 export default function BillsPage() {
   const { user } = useAuthStore()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingBill, setEditingBill] = useState<Bill | null>(null)
   const [bills, setBills] = useState<Bill[]>([])
+  const [deletedBills, setDeletedBills] = useState<Bill[]>([])
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [paidBillIds, setPaidBillIds] = useState<Set<number>>(new Set())
   const [categories, setCategories] = useState<BillCategory[]>([])
   const [summary, setSummary] = useState({
     totalMonthly: 0,
@@ -68,14 +77,20 @@ export default function BillsPage() {
     if (!user?.id) return
     setIsLoading(true)
     try {
-      const [billsData, categoriesData, summaryData] = await Promise.all([
+      const [billsData, categoriesData, summaryData, paymentsData, inactiveBills] = await Promise.all([
         getBills(user.id),
         getBillCategories(),
         getBillsSummary(user.id, currentYear, currentMonth),
+        getBillPaymentsForMonth(user.id, currentYear, currentMonth),
+        getInactiveBills(user.id),
       ])
       setBills(billsData)
       setCategories(categoriesData)
       setSummary(summaryData)
+      setDeletedBills(inactiveBills)
+      // Create a Set of bill IDs that have been paid this month
+      const paidIds = new Set<number>(paymentsData.map((p) => p.bill_id))
+      setPaidBillIds(paidIds)
     } catch (error) {
       console.error('Failed to load bills data:', error)
     } finally {
@@ -137,6 +152,61 @@ export default function BillsPage() {
       await loadData()
     } catch (error) {
       console.error('Failed to delete bill:', error)
+    }
+  }
+
+  async function handleRestoreBill(billId: number) {
+    try {
+      await restoreBill(billId)
+      await loadData()
+    } catch (error) {
+      console.error('Failed to restore bill:', error)
+    }
+  }
+
+  function openEditDialog(bill: Bill) {
+    setEditingBill(bill)
+    setFormData({
+      name: bill.name,
+      category: bill.category_id?.toString() || '',
+      amount: bill.amount.toString(),
+      dueDay: bill.due_day?.toString() || '',
+      isRecurring: bill.is_recurring,
+      notes: bill.notes || '',
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  async function handleUpdateBill(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingBill || !formData.name || !formData.amount) return
+
+    setIsSaving(true)
+    try {
+      await updateBill(editingBill.id, {
+        name: formData.name,
+        category_id: formData.category ? parseInt(formData.category) : undefined,
+        amount: parseFloat(formData.amount),
+        due_day: formData.dueDay ? parseInt(formData.dueDay) : undefined,
+        is_recurring: formData.isRecurring,
+        notes: formData.notes || undefined,
+      })
+
+      setFormData({
+        name: '',
+        category: '',
+        amount: '',
+        dueDay: '',
+        isRecurring: true,
+        notes: '',
+      })
+      setIsEditDialogOpen(false)
+      setEditingBill(null)
+      await loadData()
+    } catch (error) {
+      console.error('Failed to update bill:', error)
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -333,13 +403,14 @@ export default function BillsPage() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search bills..." className="pl-9 w-[200px]" />
-                </div>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
-                </Button>
+                <Label htmlFor="show-deleted" className="text-sm text-muted-foreground">
+                  Show Deleted
+                </Label>
+                <Switch
+                  id="show-deleted"
+                  checked={showDeleted}
+                  onCheckedChange={setShowDeleted}
+                />
               </div>
             </div>
           </CardHeader>
@@ -377,13 +448,28 @@ export default function BillsPage() {
                         </Badge>
                       </div>
                       <div className="flex gap-1">
+                        {paidBillIds.has(bill.id) ? (
+                          <Badge className="bg-green-500 text-white px-3 py-1">
+                            <Check className="h-3 w-3 mr-1" />
+                            Paid
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleMarkPaid(bill)}
+                            title="Mark as paid"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleMarkPaid(bill)}
-                          title="Mark as paid"
+                          onClick={() => openEditDialog(bill)}
+                          title="Edit bill"
                         >
-                          <Check className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
@@ -416,7 +502,175 @@ export default function BillsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Deleted Bills Section */}
+        {showDeleted && deletedBills.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-muted-foreground">Deleted Bills</CardTitle>
+              <CardDescription>
+                These bills have been deleted but can be restored
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {deletedBills.map((bill) => (
+                  <div
+                    key={bill.id}
+                    className="flex items-center justify-between p-3 border rounded-lg bg-muted/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-3 h-3 rounded-full opacity-50"
+                        style={{ backgroundColor: bill.category_color || '#6b7280' }}
+                      />
+                      <div>
+                        <p className="font-medium text-muted-foreground">{bill.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {bill.category_name || 'Uncategorized'} • Due: Day {bill.due_day || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <p className="font-medium text-muted-foreground">
+                        ₱{bill.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRestoreBill(bill.id)}
+                        title="Restore bill"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Restore
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      {/* Edit Bill Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Bill</DialogTitle>
+            <DialogDescription>
+              Update the bill details.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleUpdateBill}>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Bill Name</Label>
+              <Input
+                id="edit-name"
+                placeholder="e.g., Electric Bill"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, category: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id.toString()}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-amount">Amount (PHP)</Label>
+                <Input
+                  id="edit-amount"
+                  type="number"
+                  placeholder="0.00"
+                  value={formData.amount}
+                  onChange={(e) =>
+                    setFormData({ ...formData, amount: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-dueDay">Due Day (of month)</Label>
+                <Input
+                  id="edit-dueDay"
+                  type="number"
+                  min="1"
+                  max="31"
+                  placeholder="15"
+                  value={formData.dueDay}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dueDay: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Recurring</Label>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Switch
+                    checked={formData.isRecurring}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, isRecurring: checked })
+                    }
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {formData.isRecurring ? 'Monthly' : 'One-time'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notes (optional)</Label>
+              <Input
+                id="edit-notes"
+                placeholder="Additional notes..."
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  setIsEditDialogOpen(false)
+                  setEditingBill(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Update Bill
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

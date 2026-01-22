@@ -1,7 +1,8 @@
 import { getDbClient } from './db/client'
 import { getMonthlyTotals } from './income'
 import { getBillsSummary, getBills } from './bills'
-import { getBudgetSummary } from './budget'
+// getBudgetSummary imported for future use
+import type {} from './budget'
 import { getMortgages, getMortgageSummary } from './mortgage'
 
 export interface DashboardStats {

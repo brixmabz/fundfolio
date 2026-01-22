@@ -111,7 +111,7 @@ export async function getBudgetSummary(
     sql: 'SELECT COALESCE(SUM(limit_amount), 0) as total FROM budgets WHERE user_id = ? AND year = ? AND month = ?',
     args: [userId, year, month],
   })
-  const totalBudget = Number((budgetResult.rows[0] as { total: number })?.total || 0)
+  const totalBudget = Number((budgetResult.rows[0] as unknown as { total: number })?.total || 0)
 
   // Get total spent on budgeted categories
   const spentResult = await client.execute({
@@ -126,7 +126,7 @@ export async function getBudgetSummary(
     `,
     args: [userId, startDate, endDate, userId, year, month],
   })
-  const totalSpent = Number((spentResult.rows[0] as { total: number })?.total || 0)
+  const totalSpent = Number((spentResult.rows[0] as unknown as { total: number })?.total || 0)
 
   return {
     totalBudget,

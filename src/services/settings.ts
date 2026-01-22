@@ -16,7 +16,7 @@ export async function getSetting(userId: number, key: string): Promise<string | 
     sql: 'SELECT value FROM settings WHERE user_id = ? AND key = ?',
     args: [userId, key],
   })
-  return (result.rows[0] as { value: string })?.value || null
+  return (result.rows[0] as unknown as { value: string })?.value || null
 }
 
 export async function setSetting(userId: number, key: string, value: string): Promise<void> {

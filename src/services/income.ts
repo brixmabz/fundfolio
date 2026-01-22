@@ -119,7 +119,7 @@ export async function getMonthlyTotals(
     args: [userId, startDate, endDate],
   })
 
-  const row = result.rows[0] as {
+  const row = result.rows[0] as unknown as {
     recorded_usd: number
     recorded_php: number
     expected_usd: number
@@ -150,7 +150,7 @@ export async function getYearToDateTotals(
     args: [userId, startDate, endDate],
   })
 
-  const row = result.rows[0] as { total_usd: number; total_php: number }
+  const row = result.rows[0] as unknown as { total_usd: number; total_php: number }
   return {
     totalUsd: row?.total_usd || 0,
     totalPhp: row?.total_php || 0,

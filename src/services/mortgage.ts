@@ -151,7 +151,7 @@ export async function getMortgageSummary(mortgageId: number): Promise<{
     args: [mortgageId],
   })
 
-  const row = result.rows[0] as {
+  const row = result.rows[0] as unknown as {
     total_paid: number
     total_principal_paid: number
     total_interest_paid: number
@@ -173,7 +173,7 @@ export async function getMortgageSummary(mortgageId: number): Promise<{
   // Get principal if no payments yet
   const mortgage = await getMortgageById(mortgageId)
   const remainingBalance = latestPayment.rows[0]
-    ? Number((latestPayment.rows[0] as { remaining_balance: number }).remaining_balance)
+    ? Number((latestPayment.rows[0] as unknown as { remaining_balance: number }).remaining_balance)
     : mortgage?.principal_amount || 0
 
   return {

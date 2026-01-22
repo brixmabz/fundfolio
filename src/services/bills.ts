@@ -196,7 +196,7 @@ export async function getBillsSummary(userId: number, year: number, month: numbe
     sql: 'SELECT COALESCE(SUM(amount), 0) as total FROM bills WHERE user_id = ? AND is_active = 1',
     args: [userId],
   })
-  const totalMonthly = Number((billsResult.rows[0] as { total: number })?.total || 0)
+  const totalMonthly = Number((billsResult.rows[0] as unknown as { total: number })?.total || 0)
 
   // Get total paid this month
   const paidResult = await client.execute({
@@ -208,7 +208,7 @@ export async function getBillsSummary(userId: number, year: number, month: numbe
     `,
     args: [userId, startDate, endDate],
   })
-  const totalPaid = Number((paidResult.rows[0] as { total: number })?.total || 0)
+  const totalPaid = Number((paidResult.rows[0] as unknown as { total: number })?.total || 0)
 
   // Calculate pending (bills not yet paid this month, due date hasn't passed)
   const pendingResult = await client.execute({
@@ -223,7 +223,7 @@ export async function getBillsSummary(userId: number, year: number, month: numbe
     `,
     args: [userId, currentDay, startDate, endDate],
   })
-  const totalPending = Number((pendingResult.rows[0] as { total: number })?.total || 0)
+  const totalPending = Number((pendingResult.rows[0] as unknown as { total: number })?.total || 0)
 
   // Calculate overdue (bills not paid, due date has passed)
   const overdueResult = await client.execute({
@@ -238,7 +238,7 @@ export async function getBillsSummary(userId: number, year: number, month: numbe
     `,
     args: [userId, currentDay, startDate, endDate],
   })
-  const totalOverdue = Number((overdueResult.rows[0] as { total: number })?.total || 0)
+  const totalOverdue = Number((overdueResult.rows[0] as unknown as { total: number })?.total || 0)
 
   return { totalMonthly, totalPaid, totalPending, totalOverdue }
 }

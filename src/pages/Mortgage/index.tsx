@@ -39,8 +39,8 @@ interface MortgageWithSummary extends Mortgage {
 export default function MortgagePage() {
   const { user } = useAuthStore()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
-  const [selectedMortgage, setSelectedMortgage] = useState<MortgageWithSummary | null>(null)
+  const [_isPaymentDialogOpen, _setIsPaymentDialogOpen] = useState(false)
+  const [_selectedMortgage, _setSelectedMortgage] = useState<MortgageWithSummary | null>(null)
   const [mortgages, setMortgages] = useState<MortgageWithSummary[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)

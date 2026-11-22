@@ -18,6 +18,14 @@ const INCOME_SOURCES = [
     default_amount: 479.01,
   },
   {
+    name: 'esl',
+    display_name: 'ESL',
+    markup_percentage: 0,
+    payment_frequency: 'none',
+    payment_schedule: null,
+    default_amount: 0,
+  },
+  {
     name: 'other',
     display_name: 'Other',
     markup_percentage: 0,
@@ -117,15 +125,16 @@ export async function checkSeedNeeded(): Promise<boolean> {
       return true
     }
 
-    // Check if income_sources table is empty
-    const countResult = await client.execute('SELECT COUNT(*) as count FROM income_sources')
-    if ((countResult.rows[0]?.count as number) === 0) {
+    // Check if any expected income sources are missing
+    const sourcesResult = await client.execute('SELECT name FROM income_sources')
+    const existingNames = new Set(sourcesResult.rows.map((row) => row.name as string))
+    if (INCOME_SOURCES.some((source) => !existingNames.has(source.name))) {
       return true
     }
 
-    // Check if any records are missing payment_schedule
+    // Check if any records that require a schedule are missing one
     const missingResult = await client.execute(
-      "SELECT COUNT(*) as count FROM income_sources WHERE payment_schedule IS NULL AND name != 'other'"
+      "SELECT COUNT(*) as count FROM income_sources WHERE payment_frequency != 'none' AND payment_schedule IS NULL"
     )
     return (missingResult.rows[0]?.count as number) > 0
   } catch {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 import {
   Plus,
   Wallet,
@@ -10,8 +10,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-} from 'lucide-react'
-import { Header } from '@/components/layout/Header'
+} from "lucide-react";
+import { Header } from "@/components/layout/Header";
 import {
   getIncomeSources,
   getIncomeSourceByName,
@@ -21,25 +21,25 @@ import {
   getYearToDateTotals,
   deleteSalary,
   updateIncomeSourceAmount,
-} from '@/services/income'
-import { useAuthStore } from '@/stores/authStore'
-import type { IncomeSource, Salary } from '@/types/database'
+} from "@/services/income";
+import { useAuthStore } from "@/stores/authStore";
+import type { IncomeSource, Salary } from "@/types/database";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   CardDescription,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -48,97 +48,116 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   getExpectedPaymentDates,
   parsePaymentSchedule,
   formatDateToISO,
-} from '@/lib/paymentDates'
+} from "@/lib/paymentDates";
 export default function IncomePage() {
-  const { user } = useAuthStore()
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false)
-  const [isRecordDialogOpen, setIsRecordDialogOpen] = useState(false)
-  const [selectedSalary, setSelectedSalary] = useState<Salary | null>(null)
-  const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([])
-  const [salaries, setSalaries] = useState<Salary[]>([])
+  const { user } = useAuthStore();
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
+  const [isRecordDialogOpen, setIsRecordDialogOpen] = useState(false);
+  const [selectedSalary, setSelectedSalary] = useState<Salary | null>(null);
+  const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
+  const [salaries, setSalaries] = useState<Salary[]>([]);
   const [monthlyTotals, setMonthlyTotals] = useState({
     recordedUsd: 0,
     recordedPhp: 0,
     expectedUsd: 0,
     expectedPhp: 0,
-  })
-  const [yearToDateTotals, setYearToDateTotals] = useState({ totalUsd: 0, totalPhp: 0 })
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
+  });
+  const [yearToDateTotals, setYearToDateTotals] = useState({
+    totalUsd: 0,
+    totalPhp: 0,
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [recordFormData, setRecordFormData] = useState({
-    amountUsd: '',
-    exchangeRate: '',
-    description: '',
-  })
+    amountUsd: "",
+    exchangeRate: "",
+    description: "",
+  });
   const [formData, setFormData] = useState({
-    source: '',
-    amountUsd: '',
-    exchangeRate: '',
-    paymentDate: new Date().toISOString().split('T')[0],
-    description: '',
-  })
-  const [generateAmounts, setGenerateAmounts] = useState<Record<number, string>>({})
+    source: "",
+    customSource: "",
+    amountUsd: "",
+    exchangeRate: "",
+    paymentDate: new Date().toISOString().split("T")[0],
+    description: "",
+  });
+  const [generateAmounts, setGenerateAmounts] = useState<
+    Record<number, string>
+  >({});
 
   // Current viewing month
-  const [viewDate, setViewDate] = useState(new Date())
-  const currentMonth = viewDate.getMonth()
-  const currentYear = viewDate.getFullYear()
+  const [viewDate, setViewDate] = useState(new Date());
+  const currentMonth = viewDate.getMonth();
+  const currentYear = viewDate.getFullYear();
 
   // Placeholder exchange rate
-  const marketRate = 58.5
+  const marketRate = 58.5;
 
   // Load data on mount and when month changes
   useEffect(() => {
-    loadData()
-  }, [currentMonth, currentYear, user?.id])
+    loadData();
+  }, [currentMonth, currentYear, user?.id]);
 
   async function loadData() {
-    if (!user?.id) return
-    setIsLoading(true)
+    if (!user?.id) return;
+    setIsLoading(true);
     try {
       const [sources, entries, totals, ytdTotals] = await Promise.all([
         getIncomeSources(),
         getSalariesByMonth(user.id, currentYear, currentMonth),
         getMonthlyTotals(user.id, currentYear, currentMonth),
         getYearToDateTotals(user.id, currentYear),
-      ])
-      setIncomeSources(sources)
-      setSalaries(entries)
-      setYearToDateTotals(ytdTotals)
-      setMonthlyTotals(totals)
+      ]);
+      setIncomeSources(sources);
+      setSalaries(entries);
+      setYearToDateTotals(ytdTotals);
+      setMonthlyTotals(totals);
     } catch (error) {
-      console.error('Failed to load income data:', error)
+      console.error("Failed to load income data:", error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   async function handleSaveIncome(e: React.FormEvent) {
-    e.preventDefault()
-    if (!user?.id || !formData.source || !formData.amountUsd || !formData.exchangeRate) {
-      return
+    e.preventDefault();
+    if (
+      !user?.id ||
+      !formData.source ||
+      !formData.amountUsd ||
+      !formData.exchangeRate ||
+      (formData.source === "other" && !formData.customSource.trim())
+    ) {
+      return;
     }
 
-    setIsSaving(true)
+    setIsSaving(true);
     try {
       // Get source_id from the selected source name
-      const source = await getIncomeSourceByName(formData.source)
+      const source = await getIncomeSourceByName(formData.source);
       if (!source) {
-        console.error('Income source not found:', formData.source)
-        return
+        console.error("Income source not found:", formData.source);
+        return;
       }
 
-      const amountUsd = parseFloat(formData.amountUsd)
-      const exchangeRate = parseFloat(formData.exchangeRate)
-      const amountPhp = amountUsd * exchangeRate
+      const amountUsd = parseFloat(formData.amountUsd);
+      const exchangeRate = parseFloat(formData.exchangeRate);
+      const amountPhp = amountUsd * exchangeRate;
+
+      const description =
+        formData.source === "other"
+          ? [formData.customSource.trim(), formData.description.trim()]
+              .filter(Boolean)
+              .join(" - ")
+          : formData.description || undefined;
 
       await createSalary({
         user_id: user.id,
@@ -148,87 +167,86 @@ export default function IncomePage() {
         exchange_rate_used: exchangeRate,
         exchange_rate_market: marketRate,
         payment_date: formData.paymentDate,
-        description: formData.description || undefined,
-        status: 'recorded',
-      })
+        description,
+        status: "recorded",
+      });
 
       // Reset form and close dialog
       setFormData({
-        source: '',
-        amountUsd: '',
-        exchangeRate: '',
-        paymentDate: new Date().toISOString().split('T')[0],
-        description: '',
-      })
-      setIsAddDialogOpen(false)
+        source: "",
+        customSource: "",
+        amountUsd: "",
+        exchangeRate: "",
+        paymentDate: new Date().toISOString().split("T")[0],
+        description: "",
+      });
+      setIsAddDialogOpen(false);
 
       // Refresh the data
-      await loadData()
+      await loadData();
     } catch (error) {
-      console.error('Failed to save income:', error)
+      console.error("Failed to save income:", error);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
   }
 
   const handleSourceChange = (value: string) => {
-    setFormData({ ...formData, source: value })
-    if (value === 'deel') {
-      setFormData({
-        ...formData,
-        source: value,
-        exchangeRate: (marketRate * 0.985).toFixed(2),
-      })
-    } else if (value === 'upwork') {
-      setFormData({
-        ...formData,
-        source: value,
-        exchangeRate: (marketRate * 0.975).toFixed(2),
-      })
+    let exchangeRate = marketRate.toFixed(2);
+    if (value === "deel") {
+      exchangeRate = (marketRate * 0.985).toFixed(2);
+    } else if (value === "upwork") {
+      exchangeRate = (marketRate * 0.975).toFixed(2);
     }
-  }
+    setFormData({ ...formData, source: value, exchangeRate });
+  };
 
   async function handleGenerateExpected() {
-    if (!user?.id) return
+    if (!user?.id) return;
 
-    setIsSaving(true)
+    setIsSaving(true);
     try {
       // Save updated default amounts
       for (const source of incomeSources) {
-        if (source.payment_frequency === 'none') continue
-        const newAmount = parseFloat(generateAmounts[source.id] || '0')
+        if (source.payment_frequency === "none") continue;
+        const newAmount = parseFloat(generateAmounts[source.id] || "0");
         if (newAmount !== source.default_amount) {
-          await updateIncomeSourceAmount(source.id, newAmount)
+          await updateIncomeSourceAmount(source.id, newAmount);
         }
       }
 
       // Get existing salaries for this month to avoid duplicates
-      const existingSalaries = await getSalariesByMonth(user.id, currentYear, currentMonth)
+      const existingSalaries = await getSalariesByMonth(
+        user.id,
+        currentYear,
+        currentMonth
+      );
       const existingDates = new Set(
         existingSalaries.map((s) => `${s.source_id}-${s.payment_date}`)
-      )
+      );
 
       for (const source of incomeSources) {
-        if (source.payment_frequency === 'none' || !source.payment_schedule) continue
+        if (source.payment_frequency === "none" || !source.payment_schedule)
+          continue;
 
-        const schedule = parsePaymentSchedule(source.payment_schedule)
+        const schedule = parsePaymentSchedule(source.payment_schedule);
         const dates = getExpectedPaymentDates(
           currentYear,
           currentMonth,
           source.payment_frequency,
           schedule
-        )
+        );
 
-        const amountUsd = parseFloat(generateAmounts[source.id] || '0')
-        const exchangeRate = marketRate * (1 - (source.markup_percentage || 0))
-        const amountPhp = amountUsd * exchangeRate
+        const amountUsd = parseFloat(generateAmounts[source.id] || "0");
+        const exchangeRate = marketRate * (1 - (source.markup_percentage || 0));
+        const amountPhp = amountUsd * exchangeRate;
 
         for (const date of dates) {
-          const dateStr = formatDateToISO(date)
-          const key = `${source.id}-${dateStr}`
+          const dateStr = formatDateToISO(date);
+          const key = `${source.id}-${dateStr}`;
 
           // Skip if already exists
-          if (existingDates.has(key)) continue
+          if (existingDates.has(key)) continue;
 
           await createSalary({
             user_id: user.id,
@@ -237,81 +255,87 @@ export default function IncomePage() {
             amount_php: amountPhp,
             exchange_rate_used: exchangeRate,
             payment_date: dateStr,
-            status: 'expected',
-          })
+            status: "expected",
+          });
         }
       }
 
-      setIsGenerateDialogOpen(false)
-      await loadData()
+      setIsGenerateDialogOpen(false);
+      await loadData();
     } catch (error) {
-      console.error('Failed to generate expected entries:', error)
+      console.error("Failed to generate expected entries:", error);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
   }
 
-  const navigateMonth = (direction: 'prev' | 'next') => {
+  const navigateMonth = (direction: "prev" | "next") => {
     setViewDate((prev) => {
-      const newDate = new Date(prev)
-      if (direction === 'prev') {
-        newDate.setMonth(newDate.getMonth() - 1)
+      const newDate = new Date(prev);
+      if (direction === "prev") {
+        newDate.setMonth(newDate.getMonth() - 1);
       } else {
-        newDate.setMonth(newDate.getMonth() + 1)
+        newDate.setMonth(newDate.getMonth() + 1);
       }
-      return newDate
-    })
-  }
+      return newDate;
+    });
+  };
 
-  const monthYearLabel = viewDate.toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
+  const monthYearLabel = viewDate.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   // Count expected payments per source for the current month
   const getExpectedCounts = () => {
-    const counts: Record<string, number> = { deel: 0, upwork: 0 }
+    const counts: Record<string, number> = { deel: 0, upwork: 0 };
     for (const source of incomeSources) {
-      if (source.payment_frequency === 'none' || !source.payment_schedule) continue
-      const schedule = parsePaymentSchedule(source.payment_schedule)
+      if (source.payment_frequency === "none" || !source.payment_schedule)
+        continue;
+      const schedule = parsePaymentSchedule(source.payment_schedule);
       const dates = getExpectedPaymentDates(
         currentYear,
         currentMonth,
         source.payment_frequency,
         schedule
-      )
-      counts[source.name] = dates.length
+      );
+      counts[source.name] = dates.length;
     }
-    return counts
-  }
+    return counts;
+  };
 
-  const expectedCounts = getExpectedCounts()
+  const expectedCounts = getExpectedCounts();
 
   function handleRecordExpected(salary: Salary) {
-    setSelectedSalary(salary)
+    setSelectedSalary(salary);
     // Find the source to pre-fill the exchange rate
-    const source = incomeSources.find((s) => s.id === salary.source_id)
-    const markupRate = source?.markup_percentage || 0
+    const source = incomeSources.find((s) => s.id === salary.source_id);
+    const markupRate = source?.markup_percentage || 0;
     setRecordFormData({
-      amountUsd: '',
+      amountUsd: "",
       exchangeRate: (marketRate * (1 - markupRate)).toFixed(2),
-      description: '',
-    })
-    setIsRecordDialogOpen(true)
+      description: "",
+    });
+    setIsRecordDialogOpen(true);
   }
 
   async function handleSaveRecord(e: React.FormEvent) {
-    e.preventDefault()
-    if (!selectedSalary || !recordFormData.amountUsd || !recordFormData.exchangeRate) return
+    e.preventDefault();
+    if (
+      !selectedSalary ||
+      !recordFormData.amountUsd ||
+      !recordFormData.exchangeRate
+    )
+      return;
 
-    setIsSaving(true)
+    setIsSaving(true);
     try {
-      const amountUsd = parseFloat(recordFormData.amountUsd)
-      const exchangeRate = parseFloat(recordFormData.exchangeRate)
-      const amountPhp = amountUsd * exchangeRate
+      const amountUsd = parseFloat(recordFormData.amountUsd);
+      const exchangeRate = parseFloat(recordFormData.exchangeRate);
+      const amountPhp = amountUsd * exchangeRate;
 
       // Delete the expected entry and create a recorded one
-      await deleteSalary(selectedSalary.id)
+      await deleteSalary(selectedSalary.id);
       await createSalary({
         user_id: selectedSalary.user_id,
         source_id: selectedSalary.source_id,
@@ -321,16 +345,16 @@ export default function IncomePage() {
         exchange_rate_market: marketRate,
         payment_date: selectedSalary.payment_date,
         description: recordFormData.description || undefined,
-        status: 'recorded',
-      })
+        status: "recorded",
+      });
 
-      setIsRecordDialogOpen(false)
-      setSelectedSalary(null)
-      await loadData()
+      setIsRecordDialogOpen(false);
+      setSelectedSalary(null);
+      await loadData();
     } catch (error) {
-      console.error('Failed to record income:', error)
+      console.error("Failed to record income:", error);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
   }
 
@@ -344,16 +368,16 @@ export default function IncomePage() {
             <Dialog
               open={isGenerateDialogOpen}
               onOpenChange={(open) => {
-                setIsGenerateDialogOpen(open)
+                setIsGenerateDialogOpen(open);
                 if (open) {
                   // Initialize amounts from income sources
-                  const amounts: Record<number, string> = {}
+                  const amounts: Record<number, string> = {};
                   incomeSources.forEach((source) => {
-                    if (source.payment_frequency !== 'none') {
-                      amounts[source.id] = String(source.default_amount || 0)
+                    if (source.payment_frequency !== "none") {
+                      amounts[source.id] = String(source.default_amount || 0);
                     }
-                  })
-                  setGenerateAmounts(amounts)
+                  });
+                  setGenerateAmounts(amounts);
                 }
               }}
             >
@@ -367,17 +391,22 @@ export default function IncomePage() {
                 <DialogHeader>
                   <DialogTitle>Generate Expected Entries</DialogTitle>
                   <DialogDescription>
-                    Create placeholder entries for expected payments in{' '}
+                    Create placeholder entries for expected payments in{" "}
                     {monthYearLabel}. You can update default amounts here.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   {incomeSources
-                    .filter((s) => s.payment_frequency !== 'none')
+                    .filter((s) => s.payment_frequency !== "none")
                     .map((source) => (
-                      <div key={source.id} className="space-y-2 p-3 bg-muted rounded-lg">
+                      <div
+                        key={source.id}
+                        className="space-y-2 p-3 bg-muted rounded-lg"
+                      >
                         <div className="flex justify-between items-center">
-                          <span className="font-medium">{source.display_name}</span>
+                          <span className="font-medium">
+                            {source.display_name}
+                          </span>
                           <Badge variant="secondary">
                             {expectedCounts[source.name] || 0} payments
                           </Badge>
@@ -392,7 +421,7 @@ export default function IncomePage() {
                               type="number"
                               step="0.01"
                               className="pl-7 h-8"
-                              value={generateAmounts[source.id] || ''}
+                              value={generateAmounts[source.id] || ""}
                               onChange={(e) =>
                                 setGenerateAmounts({
                                   ...generateAmounts,
@@ -403,8 +432,9 @@ export default function IncomePage() {
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {source.name === 'deel' && '11th & 26th of each month'}
-                          {source.name === 'upwork' && 'Every Friday'}
+                          {source.name === "deel" &&
+                            "11th & 26th of each month"}
+                          {source.name === "upwork" && "Every Friday"}
                         </p>
                       </div>
                     ))}
@@ -417,8 +447,10 @@ export default function IncomePage() {
                     Cancel
                   </Button>
                   <Button onClick={handleGenerateExpected} disabled={isSaving}>
-                    {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Generate {expectedCounts.deel + expectedCounts.upwork}{' '}
+                    {isSaving && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    Generate {expectedCounts.deel + expectedCounts.upwork}{" "}
                     Entries
                   </Button>
                 </DialogFooter>
@@ -453,10 +485,28 @@ export default function IncomePage() {
                       <SelectContent>
                         <SelectItem value="deel">Deel</SelectItem>
                         <SelectItem value="upwork">Upwork</SelectItem>
+                        <SelectItem value="esl">ESL</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {formData.source === "other" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="customSource">Source Name</Label>
+                      <Input
+                        id="customSource"
+                        placeholder="e.g., Freelance Project, Bonus"
+                        value={formData.customSource}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            customSource: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -510,7 +560,7 @@ export default function IncomePage() {
                           {(
                             parseFloat(formData.amountUsd) *
                             parseFloat(formData.exchangeRate)
-                          ).toLocaleString('en-PH', {
+                          ).toLocaleString("en-PH", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
@@ -532,7 +582,10 @@ export default function IncomePage() {
                       type="date"
                       value={formData.paymentDate}
                       onChange={(e) =>
-                        setFormData({ ...formData, paymentDate: e.target.value })
+                        setFormData({
+                          ...formData,
+                          paymentDate: e.target.value,
+                        })
                       }
                     />
                   </div>
@@ -560,7 +613,9 @@ export default function IncomePage() {
                       Cancel
                     </Button>
                     <Button type="submit" disabled={isSaving}>
-                      {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      {isSaving && (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      )}
                       Save Income
                     </Button>
                   </DialogFooter>
@@ -577,11 +632,15 @@ export default function IncomePage() {
           <DialogHeader>
             <DialogTitle>Record Income</DialogTitle>
             <DialogDescription>
-              Record the actual payment for{' '}
-              {selectedSalary && new Date(selectedSalary.payment_date).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              })}
+              Record the actual payment for{" "}
+              {selectedSalary &&
+                new Date(selectedSalary.payment_date).toLocaleDateString(
+                  "en-US",
+                  {
+                    month: "short",
+                    day: "numeric",
+                  }
+                )}
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSaveRecord}>
@@ -635,7 +694,7 @@ export default function IncomePage() {
                     {(
                       parseFloat(recordFormData.amountUsd) *
                       parseFloat(recordFormData.exchangeRate)
-                    ).toLocaleString('en-PH', {
+                    ).toLocaleString("en-PH", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -678,11 +737,19 @@ export default function IncomePage() {
       <div className="flex-1 p-4 md:p-6 space-y-6">
         {/* Month Navigation */}
         <div className="flex items-center justify-between">
-          <Button variant="outline" size="icon" onClick={() => navigateMonth('prev')}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigateMonth("prev")}
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <h2 className="text-lg font-semibold">{monthYearLabel}</h2>
-          <Button variant="outline" size="icon" onClick={() => navigateMonth('next')}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigateMonth("next")}
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -697,10 +764,19 @@ export default function IncomePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                ₱{monthlyTotals.recordedPhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₱
+                {monthlyTotals.recordedPhp.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </div>
               <p className="text-xs text-muted-foreground">
-                ${monthlyTotals.recordedUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                $
+                {monthlyTotals.recordedUsd.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                USD
               </p>
             </CardContent>
           </Card>
@@ -712,10 +788,19 @@ export default function IncomePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">
-                ₱{monthlyTotals.expectedPhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₱
+                {monthlyTotals.expectedPhp.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </div>
               <p className="text-xs text-muted-foreground">
-                ${monthlyTotals.expectedUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                $
+                {monthlyTotals.expectedUsd.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                USD
               </p>
             </CardContent>
           </Card>
@@ -727,10 +812,19 @@ export default function IncomePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ₱{yearToDateTotals.totalPhp.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₱
+                {yearToDateTotals.totalPhp.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </div>
               <p className="text-xs text-muted-foreground">
-                ${yearToDateTotals.totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                $
+                {yearToDateTotals.totalUsd.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                USD
               </p>
             </CardContent>
           </Card>
@@ -770,26 +864,51 @@ export default function IncomePage() {
                     className="flex items-center justify-between p-3 border rounded-lg"
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${salary.status === 'expected' ? 'bg-yellow-500' : 'bg-green-500'}`} />
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          salary.status === "expected"
+                            ? "bg-yellow-500"
+                            : "bg-green-500"
+                        }`}
+                      />
                       <div>
-                        <p className="font-medium">{salary.display_name || salary.source_name}</p>
+                        <p className="font-medium">
+                          {salary.display_name || salary.source_name}
+                          {salary.source_name === "other" &&
+                            salary.description && (
+                              <span className="text-muted-foreground font-normal">
+                                {" "}
+                                &middot; {salary.description}
+                              </span>
+                            )}
+                        </p>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(salary.payment_date).toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {new Date(salary.payment_date).toLocaleDateString(
+                            "en-US",
+                            {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            }
+                          )}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {salary.status === 'recorded' ? (
+                      {salary.status === "recorded" ? (
                         <div className="text-right">
                           <p className="font-medium">
-                            ₱{salary.amount_php.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            ₱
+                            {salary.amount_php.toLocaleString("en-PH", {
+                              minimumFractionDigits: 2,
+                            })}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            ${salary.amount_usd.toLocaleString('en-US', { minimumFractionDigits: 2 })} @ {salary.exchange_rate_used}
+                            $
+                            {salary.amount_usd.toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                            })}{" "}
+                            @ {salary.exchange_rate_used}
                           </p>
                         </div>
                       ) : (
@@ -801,8 +920,12 @@ export default function IncomePage() {
                           Record
                         </Button>
                       )}
-                      <Badge variant={salary.status === 'expected' ? 'outline' : 'default'}>
-                        {salary.status === 'expected' ? 'Expected' : 'Recorded'}
+                      <Badge
+                        variant={
+                          salary.status === "expected" ? "outline" : "default"
+                        }
+                      >
+                        {salary.status === "expected" ? "Expected" : "Recorded"}
                       </Badge>
                     </div>
                   </div>
@@ -811,7 +934,9 @@ export default function IncomePage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Wallet className="h-16 w-16 text-muted-foreground/50 mb-4" />
-                <h3 className="text-lg font-semibold">No income recorded yet</h3>
+                <h3 className="text-lg font-semibold">
+                  No income recorded yet
+                </h3>
                 <p className="text-muted-foreground mt-1">
                   Generate expected entries or add your first income to start
                   tracking.
@@ -835,5 +960,5 @@ export default function IncomePage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

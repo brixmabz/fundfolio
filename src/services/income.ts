@@ -61,7 +61,8 @@ export async function getSalaries(userId: number, month?: number, year?: number)
 export async function getSalariesByMonth(userId: number, year: number, month: number): Promise<Salary[]> {
   const client = getDbClient()
   const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`
-  const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0]
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
   const result = await client.execute({
     sql: `
@@ -104,7 +105,8 @@ export async function getMonthlyTotals(
 }> {
   const client = getDbClient()
   const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`
-  const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0]
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
   const result = await client.execute({
     sql: `

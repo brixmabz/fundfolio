@@ -1,7 +1,7 @@
 import { getDbClient } from './client'
 
 // Increment this when adding new migrations
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 5
 
 const MIGRATIONS = [
   // Schema info table (no foreign keys - for system metadata)
@@ -167,6 +167,9 @@ const MIGRATIONS = [
 
   // Migration: Add default_amount field to income_sources
   `ALTER TABLE income_sources ADD COLUMN default_amount REAL DEFAULT 0`,
+
+  // Migration: Add optional maturity date to bills (YYYY-MM-DD, NULL = none)
+  `ALTER TABLE bills ADD COLUMN maturity_date TEXT DEFAULT NULL`,
 ]
 
 async function getStoredVersion(): Promise<number> {

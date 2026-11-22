@@ -48,8 +48,8 @@ export async function getBillById(id: number): Promise<Bill | null> {
 export async function createBill(data: BillCreate): Promise<number> {
   const client = getDbClient()
   const result = await client.execute({
-    sql: `INSERT INTO bills (user_id, category_id, name, amount, currency, due_day, is_recurring, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO bills (user_id, category_id, name, amount, currency, due_day, maturity_date, is_recurring, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       data.user_id,
       data.category_id || null,
@@ -57,6 +57,7 @@ export async function createBill(data: BillCreate): Promise<number> {
       data.amount,
       data.currency || 'PHP',
       data.due_day || null,
+      data.maturity_date || null,
       data.is_recurring !== false ? 1 : 0,
       data.notes || null,
     ],
@@ -84,6 +85,11 @@ export async function updateBill(id: number, data: Partial<BillCreate>): Promise
   if (data.due_day !== undefined) {
     updates.push('due_day = ?')
     args.push(data.due_day || null)
+  }
+  if (data.maturity_date !== undefined) {
+    // null/empty string clears the maturity date
+    updates.push('maturity_date = ?')
+    args.push(data.maturity_date || null)
   }
   if (data.is_recurring !== undefined) {
     updates.push('is_recurring = ?')
@@ -150,6 +156,19 @@ export async function createBillPayment(
     args: [billId, amountPaid, paymentDate, status, notes || null],
   })
   return Number(result.lastInsertRowid)
+}
+
+// Undo "mark as paid": removes this bill's payments recorded in the given month (0-based)
+export async function deleteBillPaymentsForMonth(billId: number, year: number, month: number): Promise<void> {
+  const client = getDbClient()
+  const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+  await client.execute({
+    sql: 'DELETE FROM bill_payments WHERE bill_id = ? AND payment_date >= ? AND payment_date <= ?',
+    args: [billId, startDate, endDate],
+  })
 }
 
 export async function getBillPayments(billId: number): Promise<BillPayment[]> {

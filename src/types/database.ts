@@ -64,6 +64,7 @@ export interface Bill {
   amount: number
   currency: string
   due_day: number | null
+  maturity_date: string | null
   is_recurring: boolean
   is_active: boolean
   notes: string | null
@@ -81,6 +82,7 @@ export interface BillCreate {
   amount: number
   currency?: string
   due_day?: number
+  maturity_date?: string | null
   is_recurring?: boolean
   notes?: string
 }

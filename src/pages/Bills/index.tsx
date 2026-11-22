@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Receipt, Loader2, Check, Trash2, Pencil, RotateCcw } from 'lucide-react'
+import { Plus, Receipt, Loader2, Check, Trash2, Pencil, RotateCcw, Undo2 } from 'lucide-react'
 import { Header } from '@/components/layout/Header'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -35,8 +35,49 @@ import {
   getInactiveBills,
   restoreBill,
   getBillPaymentsForMonth,
+  deleteBillPaymentsForMonth,
 } from '@/services/bills'
 import type { Bill, BillCategory } from '@/types/database'
+import { BillFilters } from './BillFilters'
+import {
+  applyBillFilters,
+  getActiveFilterCount,
+  type BillFilterContext,
+  type BillFilterValues,
+} from './filters'
+
+const EMPTY_FORM = {
+  name: '',
+  category: '',
+  amount: '',
+  dueDay: '',
+  maturityDate: '',
+  isRecurring: true,
+  notes: '',
+}
+
+// Formats a stored 'YYYY-MM-DD' date without timezone shifting
+function formatMaturityDate(value: string): string {
+  const [y, m, d] = value.split('-').map(Number)
+  if (!y || !m || !d) return value
+  return new Date(y, m - 1, d).toLocaleDateString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function MaturityDate({ value, muted = false }: { value: string | null; muted?: boolean }) {
+  if (!value) return null
+  return (
+    <div className="text-center">
+      <p className="text-xs text-muted-foreground">Matures</p>
+      <p className={`text-sm font-medium ${muted ? 'text-muted-foreground' : ''}`}>
+        {formatMaturityDate(value)}
+      </p>
+    </div>
+  )
+}
 
 export default function BillsPage() {
   const { user } = useAuthStore()
@@ -46,6 +87,8 @@ export default function BillsPage() {
   const [bills, setBills] = useState<Bill[]>([])
   const [deletedBills, setDeletedBills] = useState<Bill[]>([])
   const [showDeleted, setShowDeleted] = useState(false)
+  const [showPaid, setShowPaid] = useState(false)
+  const [filterValues, setFilterValues] = useState<BillFilterValues>({})
   const [paidBillIds, setPaidBillIds] = useState<Set<number>>(new Set())
   const [categories, setCategories] = useState<BillCategory[]>([])
   const [summary, setSummary] = useState({
@@ -56,14 +99,7 @@ export default function BillsPage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    amount: '',
-    dueDay: '',
-    isRecurring: true,
-    notes: '',
-  })
+  const [formData, setFormData] = useState(EMPTY_FORM)
 
   const currentDate = new Date()
   const currentMonth = currentDate.getMonth()
@@ -110,18 +146,12 @@ export default function BillsPage() {
         name: formData.name,
         amount: parseFloat(formData.amount),
         due_day: formData.dueDay ? parseInt(formData.dueDay) : undefined,
+        maturity_date: formData.maturityDate || null,
         is_recurring: formData.isRecurring,
         notes: formData.notes || undefined,
       })
 
-      setFormData({
-        name: '',
-        category: '',
-        amount: '',
-        dueDay: '',
-        isRecurring: true,
-        notes: '',
-      })
+      setFormData(EMPTY_FORM)
       setIsAddDialogOpen(false)
       await loadData()
     } catch (error) {
@@ -145,6 +175,25 @@ export default function BillsPage() {
       console.error('Failed to mark bill as paid:', error)
     }
   }
+
+  async function handleMarkUnpaid(bill: Bill) {
+    try {
+      await deleteBillPaymentsForMonth(bill.id, currentYear, currentMonth)
+      await loadData()
+    } catch (error) {
+      console.error('Failed to mark bill as unpaid:', error)
+    }
+  }
+
+  // Same rule as the Overdue summary card: unpaid this month and due day already passed
+  function isOverdue(bill: Bill) {
+    return !paidBillIds.has(bill.id) && !!bill.due_day && bill.due_day < currentDate.getDate()
+  }
+
+  const filterContext: BillFilterContext = { categories, isOverdue }
+  const unpaidOrAll = showPaid ? bills : bills.filter((bill) => !paidBillIds.has(bill.id))
+  const visibleBills = applyBillFilters(unpaidOrAll, filterValues, filterContext)
+  const hasActiveFilters = getActiveFilterCount(filterValues) > 0
 
   async function handleDeleteBill(billId: number) {
     try {
@@ -171,6 +220,7 @@ export default function BillsPage() {
       category: bill.category_id?.toString() || '',
       amount: bill.amount.toString(),
       dueDay: bill.due_day?.toString() || '',
+      maturityDate: bill.maturity_date || '',
       isRecurring: bill.is_recurring,
       notes: bill.notes || '',
     })
@@ -188,18 +238,12 @@ export default function BillsPage() {
         category_id: formData.category ? parseInt(formData.category) : undefined,
         amount: parseFloat(formData.amount),
         due_day: formData.dueDay ? parseInt(formData.dueDay) : undefined,
+        maturity_date: formData.maturityDate || null, // null clears it
         is_recurring: formData.isRecurring,
         notes: formData.notes || undefined,
       })
 
-      setFormData({
-        name: '',
-        category: '',
-        amount: '',
-        dueDay: '',
-        isRecurring: true,
-        notes: '',
-      })
+      setFormData(EMPTY_FORM)
       setIsEditDialogOpen(false)
       setEditingBill(null)
       await loadData()
@@ -310,6 +354,18 @@ export default function BillsPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="maturityDate">Maturity Date (optional)</Label>
+                  <Input
+                    id="maturityDate"
+                    type="date"
+                    value={formData.maturityDate}
+                    onChange={(e) =>
+                      setFormData({ ...formData, maturityDate: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="notes">Notes (optional)</Label>
                   <Input
                     id="notes"
@@ -395,22 +451,43 @@ export default function BillsPage() {
         {/* Bills List */}
         <Card>
           <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
               <div>
                 <CardTitle>Your Bills</CardTitle>
                 <CardDescription>
                   Manage your recurring and one-time bills
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="show-deleted" className="text-sm text-muted-foreground">
-                  Show Deleted
-                </Label>
-                <Switch
-                  id="show-deleted"
-                  checked={showDeleted}
-                  onCheckedChange={setShowDeleted}
+              <div className="flex flex-wrap items-end gap-x-6 gap-y-3 lg:justify-end">
+              {bills.length > 0 && (
+                <BillFilters
+                  values={filterValues}
+                  onChange={setFilterValues}
+                  context={filterContext}
                 />
+              )}
+              <div className="flex items-center gap-6 h-9">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="show-paid" className="text-sm text-muted-foreground">
+                    Show Paid
+                  </Label>
+                  <Switch
+                    id="show-paid"
+                    checked={showPaid}
+                    onCheckedChange={setShowPaid}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="show-deleted" className="text-sm text-muted-foreground">
+                    Show Deleted
+                  </Label>
+                  <Switch
+                    id="show-deleted"
+                    checked={showDeleted}
+                    onCheckedChange={setShowDeleted}
+                  />
+                </div>
+              </div>
               </div>
             </div>
           </CardHeader>
@@ -419,26 +496,62 @@ export default function BillsPage() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
+            ) : bills.length > 0 && visibleBills.length === 0 && hasActiveFilters ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Receipt className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                <h3 className="text-lg font-semibold">No bills match your filters</h3>
+                <p className="text-muted-foreground mt-1">
+                  {showPaid
+                    ? 'Try changing or clearing the filters.'
+                    : 'Try changing the filters, or turn on "Show Paid".'}
+                </p>
+                <Button variant="outline" className="mt-4" onClick={() => setFilterValues({})}>
+                  Clear filters
+                </Button>
+              </div>
+            ) : bills.length > 0 && visibleBills.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Check className="h-12 w-12 text-green-500 mb-3" />
+                <h3 className="text-lg font-semibold">All bills paid this month</h3>
+                <p className="text-muted-foreground mt-1">
+                  Turn on "Show Paid" to see them.
+                </p>
+              </div>
             ) : bills.length > 0 ? (
               <div className="space-y-2">
-                {bills.map((bill) => (
+                {visibleBills.map((bill) => (
                   <div
                     key={bill.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
+                    className="flex items-center justify-between gap-3 p-3 border rounded-lg"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 md:flex-1 min-w-0">
                       <div
-                        className="w-3 h-3 rounded-full"
+                        className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: bill.category_color || '#6b7280' }}
                       />
-                      <div>
-                        <p className="font-medium">{bill.name}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium">
+                          {bill.name}
+                          {isOverdue(bill) && (
+                            <span className="ml-2 text-sm font-semibold text-red-500">
+                              Overdue
+                            </span>
+                          )}
+                        </p>
                         <p className="text-sm text-muted-foreground">
                           {bill.category_name || 'Uncategorized'} • Due: Day {bill.due_day || 'N/A'}
+                          {bill.maturity_date && (
+                            <span className="md:hidden">
+                              {' '}• Matures: {formatMaturityDate(bill.maturity_date)}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="hidden md:flex flex-1 justify-center">
+                      <MaturityDate value={bill.maturity_date} />
+                    </div>
+                    <div className="flex items-center justify-end gap-3 md:flex-1">
                       <div className="text-right">
                         <p className="font-medium">
                           ₱{bill.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
@@ -449,10 +562,20 @@ export default function BillsPage() {
                       </div>
                       <div className="flex gap-1">
                         {paidBillIds.has(bill.id) ? (
-                          <Badge className="bg-green-500 text-white px-3 py-1">
-                            <Check className="h-3 w-3 mr-1" />
-                            Paid
-                          </Badge>
+                          <>
+                            <Badge className="bg-primary text-primary-foreground hover:bg-primary px-3 py-1">
+                              <Check className="h-3 w-3 mr-1" />
+                              Paid
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleMarkUnpaid(bill)}
+                              title="Mark as unpaid"
+                            >
+                              <Undo2 className="h-4 w-4" />
+                            </Button>
+                          </>
                         ) : (
                           <Button
                             size="sm"
@@ -517,21 +640,29 @@ export default function BillsPage() {
                 {deletedBills.map((bill) => (
                   <div
                     key={bill.id}
-                    className="flex items-center justify-between p-3 border rounded-lg bg-muted/50"
+                    className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-muted/50"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 md:flex-1 min-w-0">
                       <div
-                        className="w-3 h-3 rounded-full opacity-50"
+                        className="w-3 h-3 rounded-full opacity-50 shrink-0"
                         style={{ backgroundColor: bill.category_color || '#6b7280' }}
                       />
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-medium text-muted-foreground">{bill.name}</p>
                         <p className="text-sm text-muted-foreground">
                           {bill.category_name || 'Uncategorized'} • Due: Day {bill.due_day || 'N/A'}
+                          {bill.maturity_date && (
+                            <span className="md:hidden">
+                              {' '}• Matures: {formatMaturityDate(bill.maturity_date)}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="hidden md:flex flex-1 justify-center">
+                      <MaturityDate value={bill.maturity_date} muted />
+                    </div>
+                    <div className="flex items-center justify-end gap-3 md:flex-1">
                       <p className="font-medium text-muted-foreground">
                         ₱{bill.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                       </p>
@@ -638,6 +769,29 @@ export default function BillsPage() {
                     {formData.isRecurring ? 'Monthly' : 'One-time'}
                   </span>
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-maturityDate">Maturity Date (optional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="edit-maturityDate"
+                  type="date"
+                  value={formData.maturityDate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, maturityDate: e.target.value })
+                  }
+                />
+                {formData.maturityDate && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setFormData({ ...formData, maturityDate: '' })}
+                  >
+                    Clear
+                  </Button>
+                )}
               </div>
             </div>
 
